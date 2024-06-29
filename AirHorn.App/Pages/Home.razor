@@ -1,0 +1,205 @@
+﻿@page "/{FilterName?}"
+@using AirHorn.App.Services
+@using AirHorn.Shared.Models
+@using Telerik.DataSource
+@inject IAirHornService AirHornService
+@inject NavigationManager NavigationManager
+
+<h1>🤑💵💰🪙💸</h1>
+
+<p>Let's Goooooo</p>
+
+<TelerikGrid @ref="GridRef" Data=@MyData EditMode="@EditMode" Pageable="true" OnAdd="@CustomAdd" PageSize="10"
+             OnUpdate="@UpdateHandler" OnEdit="@EditHandler" OnDelete="@DeleteHandler" OnCancel="@CancelHandler" OnRowClick="@OnRowClickHandler"
+             Sortable="true" FilterMode="@GridFilterMode.FilterRow" FilterRowDebounceDelay="500" Size="@ThemeConstants.Grid.Size.Small" ScrollMode="GridScrollMode.Scrollable" SortMode="SortMode.Multiple">
+  <NoDataTemplate>
+    <div style="text-align:left;">
+      @if (IsLoading)
+      {
+        <div>
+          <img src="/assets/loading.gif" height="37" />
+        </div>
+      }
+      else
+      {
+        <div>
+          No data available
+        </div>
+      }
+    </div>
+  </NoDataTemplate>
+  <GridAggregates>
+    <GridAggregate Field="@nameof(Transaction.Amount)" Aggregate="@GridAggregateType.Sum" FieldType="typeof(Decimal)"></GridAggregate>
+  </GridAggregates>
+  <GridColumns>
+    <GridColumn Field=@nameof(Transaction.TransactionID) Title="ID" Editable="false" Visible="false" />
+    <GridColumn Field=@nameof(Transaction.Name) Title="Name" Width="200px" />
+    <GridColumn Field=@nameof(Transaction.Amount) Title="Amount" DisplayFormat="{0:C}" Width="200px">
+      <FooterTemplate>Total: @context.Sum</FooterTemplate>
+    </GridColumn>
+    <GridColumn Field=@nameof(Transaction.Note) Title="Note" Width="200px" />
+    <GridColumn Field=@nameof(Transaction.Date) Title="Date" Width="200px" />
+    <GridCommandColumn Width="250px">
+      <GridCommandButton Command="Save" Icon="@SvgIcon.Save" ShowInEdit="true">Update</GridCommandButton>
+      <GridCommandButton Command="Edit" Icon="@SvgIcon.Pencil">Edit</GridCommandButton>
+      <GridCommandButton Command="Delete" Icon="@SvgIcon.Trash">Delete</GridCommandButton>
+      <GridCommandButton Command="Cancel" Icon="@SvgIcon.Cancel" ShowInEdit="true">Cancel</GridCommandButton>
+    </GridCommandColumn>
+  </GridColumns>
+  <GridToolBarTemplate>
+    @* <GridCommandButton Command="Add" Icon="@SvgIcon.Plus">Add Transaction</GridCommandButton> *@
+    <TelerikButton OnClick="CustomAdd" Icon="@SvgIcon.Plus">Add Transaction</TelerikButton>
+  </GridToolBarTemplate>
+</TelerikGrid>
+
+@code {
+  private string? filterName;
+  private string? subdomain;
+
+  public List<Transaction>? MyData { get; set; }
+  public GridEditMode EditMode { get; set; } = GridEditMode.Inline;
+  private TelerikGrid<Transaction>? GridRef { get; set; }
+  public bool IsLoading { get; set; } = true;
+
+  [Parameter]
+  public string? FilterName
+  {
+    get
+    {
+      return filterName;
+    }
+    set
+    {
+      if (value != String.Empty)
+      {
+        filterName = value;
+      }
+      else if (subdomain != null)
+      {
+        filterName = subdomain;
+      }
+      else
+      {
+        filterName = String.Empty;
+      }
+    }
+  }
+
+  protected override async Task OnInitializedAsync()
+  {
+    var uri = new Uri(NavigationManager.Uri);
+    var host = uri.Host.Split('.');
+    if (String.IsNullOrEmpty(FilterName) && host != null && host.Length == 4)
+    {
+      FilterName = $"{host.First().ToUpper().First()}{host.First().Substring(1)}";
+    }
+    await GetGridData();
+    await SetGridOptions();
+    IsLoading = false;
+  }
+
+  void OnRowClickHandler(GridRowClickEventArgs args)
+  {
+    var updatedItem = args.Item as Transaction;
+    EditItem(updatedItem);
+  }
+
+  async Task EditItem(Transaction item)
+  {
+    var gridState = GridRef.GetState();
+    gridState.InsertedItem = null;
+    gridState.EditItem = null;
+    gridState.OriginalEditItem = null;
+    gridState.OriginalEditItem = item;
+    gridState.EditItem = item.Clone();
+    gridState.EditField = nameof(Transaction.Name);
+    await GridRef.SetStateAsync(gridState);
+  }
+
+  async Task CancelHandler(GridCommandEventArgs args)
+  {
+    Console.WriteLine("Cancel event is fired.");
+    Transaction item = (Transaction)args.Item;
+  }
+
+  async Task CreateHandler(GridCommandEventArgs args)
+  {
+    Console.WriteLine("Create event is fired.");
+    var draftItem = (Transaction)args.Item;
+    /// Gather the correct ID and correct the original item's ID
+    /// Must use original item to activate edit mode
+    var createdItem = await AirHornService.CreateTransaction(draftItem);
+    draftItem.TransactionID = createdItem.TransactionID;
+    MyData.Insert(0, draftItem);
+  }
+
+  async Task DeleteHandler(GridCommandEventArgs args)
+  {
+    Console.WriteLine("Delete event is fired.");
+    Transaction item = (Transaction)args.Item;
+    await AirHornService.DeleteTransaction(item.TransactionID);
+    await GetGridData();
+  }
+
+  async Task EditHandler(GridCommandEventArgs args)
+  {
+    Console.WriteLine("Edit event is fired.");
+  }
+
+  async Task UpdateHandler(GridCommandEventArgs args)
+  {
+    Console.WriteLine("Update event is fired.");
+    Transaction item = (Transaction)args.Item;
+    await AirHornService.UpdateTransaction(item.TransactionID, item);
+    await GetGridData();
+  }
+
+  private async Task CustomAdd()
+  {
+    var gridState = GridRef.GetState();
+    var insertedProduct = new Transaction()
+      {
+        TransactionID = 0,
+        Name = FilterName ?? String.Empty,
+        Date = DateOnly.FromDateTime(DateTime.Now),
+        Amount = -1,
+        Note = ""
+      };
+    await CreateHandler(new GridCommandEventArgs()
+      {
+        Item = insertedProduct
+      });
+    gridState.OriginalEditItem = insertedProduct;
+    gridState.EditItem = insertedProduct.Clone();
+    gridState.EditField = nameof(Transaction.Name);
+    await GridRef.SetStateAsync(gridState);
+  }
+
+
+  async Task GetGridData()
+  {
+    MyData = (await AirHornService.GetTransactions()).ToList();
+  }
+
+  private async Task SetGridOptions()
+  {
+    GridState<Transaction> desiredState = new GridState<Transaction>()
+      {
+        FilterDescriptors = new List<IFilterDescriptor>()
+      {
+        new CompositeFilterDescriptor()
+        {
+          FilterDescriptors = new FilterDescriptorCollection()
+          {
+            new FilterDescriptor() { Member = "Name", Operator = FilterOperator.IsEqualTo, Value = FilterName, MemberType = typeof(string)}
+          }
+        }
+      }
+      };
+    var sortDescriptors = new List<SortDescriptor>();
+    sortDescriptors.Add(new SortDescriptor() { Member = "Date", SortDirection = ListSortDirection.Descending });
+    sortDescriptors.Add(new SortDescriptor() { Member = "TransactionID", SortDirection = ListSortDirection.Descending });
+    desiredState.SortDescriptors = sortDescriptors;
+    await GridRef.SetStateAsync(desiredState);
+  }
+}

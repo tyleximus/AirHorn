@@ -1,0 +1,3 @@
+﻿# Favicon & Mobile "App" Generator
+- use https://realfavicongenerator.net/
+- add .webmanifest MIME type with value application/json to IIS
