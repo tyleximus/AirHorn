@@ -9,13 +9,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Components\CurrencyInputNumber.cs" />
     <Content Include="Properties\launchSettings.json" />
   </ItemGroup>
 
   <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.6" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.6" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Configuration" Version="8.0.0" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.27" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.27" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Configuration" Version="10.0.8" />
         <PackageReference Include="Telerik.UI.for.Blazor" Version="6.0.2" />
   </ItemGroup>
 
@@ -27,10 +28,6 @@
     <Content Update="_Imports.razor">
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Components\" />
   </ItemGroup>
 
   <ItemGroup>

@@ -55,9 +55,9 @@ public class DataContext : DbContext
   public async Task<Transaction> GetTransaction(int transactionID)
   {
     var result = await (from t in Transactions select t)
-        .Where(t => t.TransactionID == transactionID)
-        .AsNoTracking()
-        .ToListAsync();
+      .Where(t => t.TransactionID == transactionID)
+      .AsNoTracking()
+      .ToListAsync();
     return result.FirstOrDefault();
   }
 

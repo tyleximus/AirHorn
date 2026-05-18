@@ -46,9 +46,4 @@ public class AirHornService : IAirHornService
   {
     return await _httpService.Put<Transaction>($"transactions/{id}", request);
   }
-
-  //public async Task<IEnumerable<ProgressTime>> GetProgressTimes(int athleteID)
-  //{
-  //    return await _httpService.Get<IEnumerable<ProgressTime>>($"progress-times/{athleteID}");
-  //}
 }

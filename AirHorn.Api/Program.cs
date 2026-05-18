@@ -1,4 +1,5 @@
 using AirHorn.Api.Classes;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Net.Http.Headers;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,7 +25,7 @@ builder.Services.AddCors(options =>
     ///   - Configure: https://learn.microsoft.com/en-us/iis/extensions/cors-module/cors-module-configuration-reference#cors-configuration
     ///   - Keep Headers: https://www.carlosag.net/articles/enable-cors-access-control-allow-origin.cshtml
     ///   - Custom Headers: https://learn.microsoft.com/en-us/iis/extensions/url-rewrite-module/modifying-http-response-headers
-    policy.WithOrigins("https://airhorn.tyleximus.com", "https://*.airhorn.tyleximus.com")
+    policy.WithOrigins("https://airhorn.tyleximus.com", "https://*.airhorn.tyleximus.com", "https://localhost:7266")
       .SetIsOriginAllowedToAllowWildcardSubdomains()
       .AllowAnyHeader() /// Allows header content-type
       .AllowAnyMethod() /// Allows method PUT
@@ -34,14 +35,19 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-//Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+/// Ensure the app can read the X-Forwarded-Proto header to determine if the request is secure (HTTPS) when behind a reverse proxy or load balancer that terminates SSL.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
+    ForwardedHeaders = ForwardedHeaders.XForwardedProto
+});
+
+//if (app.Environment.IsDevelopment())
+//{
   app.UseSwagger();
   app.UseSwaggerUI();
-}
+//}
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 
 app.UseCors();
 

@@ -1,0 +1,114 @@
+﻿@using System.Linq.Expressions
+@inherits ComponentBase
+
+<div class="col-12 col-md-3">
+    @if (!string.IsNullOrWhiteSpace(Label))
+    {
+        <label for="@Id" class="form-label fw-bold">@Label</label>
+    }
+
+    <div class="input-group align-items-stretch">
+        <!-- Currency prefix -->
+        <span class="input-group-text">@CurrencySymbol</span>
+
+        <!-- Leading sign pill: pressed when negative -->
+        <button type="button"
+                class="@($"btn {(_isNegative ? "btn-secondary active" : "btn-outline-secondary")}")"
+                @onclick="ToggleSign"
+                aria-pressed="@_isNegative"
+                aria-label="Toggle amount sign"
+                title="Toggle sign">
+            <span aria-hidden="true">@(_isNegative ? "−" : "+")</span>
+            <span class="visually-hidden">@(_isNegative ? "Negative selected" : "Positive selected")</span>
+        </button>
+
+        <!-- Numeric-only field: bind to raw magnitude (no sign) -->
+        <CurrencyInputNumber id="@Id"
+                             class="form-control"
+                             step="1"
+                             @bind-Value="_rawAmount"
+                             @bind-Value:after="OnAmountChanged"
+                             placeholder="0" />
+    </div>
+
+    @if (ValueExpression is not null)
+    {
+        <!-- Forward validation for the signed value -->
+        <ValidationMessage For="ValueExpression" />
+    }
+</div>
+
+@code {
+    // Public API
+    [Parameter] public decimal? Value { get; set; }                          // signed, floored integer (output)
+    [Parameter] public EventCallback<decimal?> ValueChanged { get; set; }
+    [Parameter] public Expression<Func<decimal?>>? ValueExpression { get; set; }
+
+    [Parameter] public string CurrencySymbol { get; set; } = "$";
+    [Parameter] public string Id { get; set; } = "amount";
+    [Parameter] public string? Label { get; set; } = "Amount";
+    [Parameter] public bool NegativeByDefault { get; set; } = true;
+
+    [CascadingParameter] private EditContext? EditContext { get; set; }
+
+    // Internal state
+    private bool _isNegative = true;             // sign selector
+    private decimal? _rawAmount;                 // magnitude as typed (keeps fractional part)
+    private decimal? _lastExternalValue;         // to detect parent-driven changes
+    private bool _initialized;
+
+    protected override void OnParametersSet()
+    {
+        // First render or parent changed Value externally → split into sign + magnitude
+        if (!_initialized || !Nullable.Equals(Value, _lastExternalValue))
+        {
+            if (Value is null)
+            {
+                _isNegative = NegativeByDefault;
+                _rawAmount = null;
+            }
+            else
+            {
+                _isNegative = Value < 0;
+                _rawAmount = Math.Abs(Value.Value);
+            }
+            _lastExternalValue = Value;
+            _initialized = true;
+        }
+    }
+
+    private async Task ToggleSign()
+    {
+        _isNegative = !_isNegative;
+        await EmitSignedFloored();
+    }
+
+    /// Called after _rawAmount updates from the child input
+    private async Task OnAmountChanged()
+    {
+        await EmitSignedFloored();
+    }
+
+    private async Task EmitSignedFloored()
+    {
+        decimal? signed = null;
+
+        if (_rawAmount is { } m)
+        {
+            var magnitude = Math.Abs(m);
+            signed = _isNegative ? decimal.Floor(-magnitude)
+                                 : decimal.Floor(magnitude);
+
+            // Sync the child: it must display the magnitude of the stored floored value.
+            _rawAmount = Math.Abs(signed.Value);
+        }
+
+        _lastExternalValue = signed;
+        await ValueChanged.InvokeAsync(signed);
+
+        if (EditContext is not null && ValueExpression is not null)
+        {
+            EditContext.NotifyFieldChanged(FieldIdentifier.Create(ValueExpression));
+        }
+    }
+}

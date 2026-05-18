@@ -1,13 +1,76 @@
 ﻿@page "/{FilterName?}"
+@using AirHorn.App.Components
 @using AirHorn.App.Services
 @using AirHorn.Shared.Models
-@using Telerik.DataSource
+@using Telerik.DataSource 
+@using System.Globalization
 @inject IAirHornService AirHornService
 @inject NavigationManager NavigationManager
 
 <h1>🤑💵💰🪙💸</h1>
 
 <p>Let's Goooooo</p>
+
+<!-- New: Quick-Add Form -->
+<EditForm Model="@Form" OnValidSubmit="@OnSubmitAsync" class="mb-3">
+  <DataAnnotationsValidator />
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <!-- Beneficiaries -->
+        <div class="col-12 col-md-4">
+          <label class="form-label fw-bold">Beneficiaries</label>
+          <div class="d-flex gap-3 flex-wrap">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="chkTyler" @bind="isTylerChecked" />
+              <label class="form-check-label" for="chkTyler">Tyler</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="chkSierra" @bind="isSierraChecked" />
+              <label class="form-check-label" for="chkSierra">Sierra</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="chkAtticus" @bind="isAtticusChecked" />
+              <label class="form-check-label" for="chkAtticus">Atticus</label>
+            </div>
+          </div>
+          @if (BeneficiaryValidationError is not null)
+          {
+            <div class="text-danger small mt-1">@BeneficiaryValidationError</div>
+          }
+        </div>
+
+        <!-- Amount -->
+        <SignedCurrencyInput Id="amount"
+                             Label="Amount"
+                             CurrencySymbol="$"
+                             NegativeByDefault="true"
+                             @bind-Value="Form.Amount" />
+
+        <!-- Note -->
+        <div class="col-12 col-md-3">
+          <label for="note" class="form-label fw-bold">Note</label>
+          <InputText id="note" class="form-control" @bind-Value="Form.Note" />
+        </div>
+
+        <!-- Date -->
+        <div class="col-12 col-md-2">
+          <label for="date" class="form-label fw-bold">Date</label>
+          <InputDate id="date" class="form-control" @bind-Value="Form.Date" TValue="DateOnly" />
+          <ValidationMessage For="@(() => Form.Date)" />
+        </div>
+      </div>
+
+      <div class="mt-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+          <span class="me-1" aria-hidden="true">+</span> Add
+        </button>
+        <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">Clear</button>
+      </div>
+    </div>
+  </div>
+</EditForm>
 
 <TelerikGrid @ref="GridRef" Data=@MyData EditMode="@EditMode" Pageable="true" OnAdd="@CustomAdd" PageSize="10"
              OnUpdate="@UpdateHandler" OnEdit="@EditHandler" OnDelete="@DeleteHandler" OnCancel="@CancelHandler" OnRowClick="@OnRowClickHandler"
@@ -47,19 +110,29 @@
     </GridCommandColumn>
   </GridColumns>
   <GridToolBarTemplate>
-    @* <GridCommandButton Command="Add" Icon="@SvgIcon.Plus">Add Transaction</GridCommandButton> *@
-    <TelerikButton OnClick="CustomAdd" Icon="@SvgIcon.Plus">Add Transaction</TelerikButton>
+    @* No longer needed *@
+    <TelerikButton OnClick="CustomAdd" Icon="@SvgIcon.Plus" Visible="false">Add Transaction</TelerikButton>
   </GridToolBarTemplate>
 </TelerikGrid>
 
 @code {
   private string? filterName;
   private string? subdomain;
+  private const string Tyler = "Tyler";
+  private const string Sierra = "Sierra";
+  private const string Atticus = "Atticus";
 
   public List<Transaction>? MyData { get; set; }
   public GridEditMode EditMode { get; set; } = GridEditMode.Inline;
   private TelerikGrid<Transaction>? GridRef { get; set; }
   public bool IsLoading { get; set; } = true;
+
+  // --- Form state ---
+  private AddTxForm Form { get; set; } = new();
+  private bool isTylerChecked { get; set; }
+  private bool isSierraChecked { get; set; }
+  private bool isAtticusChecked { get; set; }
+  private string? BeneficiaryValidationError { get; set; }
 
   [Parameter]
   public string? FilterName
@@ -93,10 +166,134 @@
     {
       FilterName = $"{host.First().ToUpper().First()}{host.First().Substring(1)}";
     }
+
+    // Pre-check based on current filter (if it matches one of the three)
+    isTylerChecked = string.Equals(FilterName, Tyler, StringComparison.OrdinalIgnoreCase);
+    isSierraChecked = string.Equals(FilterName, Sierra, StringComparison.OrdinalIgnoreCase);
+    isAtticusChecked = string.Equals(FilterName, Atticus, StringComparison.OrdinalIgnoreCase);
+
+    // Default date mirrors your grid behavior
+    Form.Date = DateOnly.FromDateTime(DateTime.Today);
+
     await GetGridData();
     await SetGridOptions();
     IsLoading = false;
   }
+
+
+  // --- Form submit handler ---
+  private async Task OnSubmitAsync()
+  {
+    BeneficiaryValidationError = null;
+
+    if (Form.Amount is null)
+    {
+      return; // required validation will show
+    }
+
+    var roundedWhole = Form.Amount.Value;
+    if (roundedWhole == 0m)
+    {
+      BeneficiaryValidationError = "Amount must not be zero after rounding.";
+      return;
+    }
+
+    var note = Form.Note ?? string.Empty;
+    var date = Form.Date;
+
+    bool t = isTylerChecked;
+    bool s = isSierraChecked;
+    bool a = isAtticusChecked;
+
+    var toCreate = new List<Transaction>(capacity: 2);
+
+    // CASES:
+    // A) Only Tyler
+    if (t && !s && !a)
+    {
+      toCreate.Add(MakeTx(Tyler, roundedWhole, note, date));
+    }
+    // B) Only Sierra
+    else if (s && !t && !a)
+    {
+      toCreate.Add(MakeTx(Sierra, roundedWhole, note, date));
+    }
+    // C) Tyler & Sierra (with or without Atticus), OR only Atticus
+    else if ((t && s) || (!t && !s && a))
+    {
+      var half = roundedWhole / 2m;
+      toCreate.Add(MakeTx(Sierra, half, note, date));
+      toCreate.Add(MakeTx(Tyler, half, note, date));
+    }
+    // D) Tyler + Atticus (no Sierra): 75% Tyler, 25% Sierra
+    else if (t && a && !s)
+    {
+      var tAmt = roundedWhole * 0.75m;
+      var sAmt = roundedWhole * 0.25m;
+      toCreate.Add(MakeTx(Tyler, tAmt, note, date));
+      toCreate.Add(MakeTx(Sierra, sAmt, note, date));
+    }
+    // E) Sierra + Atticus (no Tyler): 75% Sierra, 25% Tyler
+    else if (s && a && !t)
+    {
+      var sAmt = roundedWhole * 0.75m;
+      var tAmt = roundedWhole * 0.25m;
+      toCreate.Add(MakeTx(Sierra, sAmt, note, date));
+      toCreate.Add(MakeTx(Tyler, tAmt, note, date));
+    }
+    else
+    {
+      // Should be unreachable, but guard anyway.
+      BeneficiaryValidationError = "Invalid selection state.";
+      return;
+    }
+
+    // Persist one-by-one (as requested)
+    foreach (var tx in toCreate)
+    {
+      await AirHornService.CreateTransaction(tx);
+    }
+
+    // Refresh grid & reset form (keep pre-checked defaults)
+    await GetGridData();
+    ResetForm(keepBeneficiaries: true);
+  }
+
+  private Transaction MakeTx(string name, decimal amount, string note, DateOnly date) =>
+    new Transaction
+    {
+      TransactionID = 0,
+      Name = name,
+      Amount = decimal.Round(amount, 2, MidpointRounding.ToZero), // amounts are exact from whole-dollar base, but clamp to 2dp
+      Note = note,
+      Date = date
+    };
+
+  private void ResetForm() => ResetForm(keepBeneficiaries: false);
+
+  private void ResetForm(bool keepBeneficiaries)
+  {
+    Form = new AddTxForm
+    {
+      Amount = null,
+      Note = string.Empty,
+      Date = DateOnly.FromDateTime(DateTime.Today)
+    };
+    BeneficiaryValidationError = null;
+
+    if (!keepBeneficiaries)
+    {
+      isTylerChecked = isSierraChecked = isAtticusChecked = false;
+      // Reapply pre-check based on filter if present
+      isTylerChecked = string.Equals(FilterName, Tyler, StringComparison.OrdinalIgnoreCase);
+      isSierraChecked = string.Equals(FilterName, Sierra, StringComparison.OrdinalIgnoreCase);
+      isAtticusChecked = string.Equals(FilterName, Atticus, StringComparison.OrdinalIgnoreCase);
+    }
+  }
+
+  private static string FormatCurrency(decimal? value) =>
+    value is null ? "$0.00" : string.Format(System.Globalization.CultureInfo.CurrentCulture, "{0:C}", value);
+
 
   void OnRowClickHandler(GridRowClickEventArgs args)
   {
@@ -158,17 +355,17 @@
   {
     var gridState = GridRef.GetState();
     var insertedProduct = new Transaction()
-      {
-        TransactionID = 0,
-        Name = FilterName ?? String.Empty,
-        Date = DateOnly.FromDateTime(DateTime.Now),
-        Amount = -1,
-        Note = ""
-      };
+    {
+      TransactionID = 0,
+      Name = FilterName ?? String.Empty,
+      Date = DateOnly.FromDateTime(DateTime.Now),
+      Amount = -1,
+      Note = ""
+    };
     await CreateHandler(new GridCommandEventArgs()
-      {
-        Item = insertedProduct
-      });
+    {
+      Item = insertedProduct
+    });
     gridState.OriginalEditItem = insertedProduct;
     gridState.EditItem = insertedProduct.Clone();
     gridState.EditField = nameof(Transaction.Name);
@@ -184,8 +381,8 @@
   private async Task SetGridOptions()
   {
     GridState<Transaction> desiredState = new GridState<Transaction>()
-      {
-        FilterDescriptors = new List<IFilterDescriptor>()
+    {
+      FilterDescriptors = new List<IFilterDescriptor>()
       {
         new CompositeFilterDescriptor()
         {
@@ -195,11 +392,23 @@
           }
         }
       }
-      };
+    };
     var sortDescriptors = new List<SortDescriptor>();
     sortDescriptors.Add(new SortDescriptor() { Member = "Date", SortDirection = ListSortDirection.Descending });
     sortDescriptors.Add(new SortDescriptor() { Member = "TransactionID", SortDirection = ListSortDirection.Descending });
     desiredState.SortDescriptors = sortDescriptors;
     await GridRef.SetStateAsync(desiredState);
+  }
+
+  // Form DTO
+  private sealed class AddTxForm
+  {
+    [System.ComponentModel.DataAnnotations.Required]
+    public decimal? Amount { get; set; }
+
+    public string? Note { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Required]
+    public DateOnly Date { get; set; } = DateOnly.FromDateTime(DateTime.Today);
   }
 }

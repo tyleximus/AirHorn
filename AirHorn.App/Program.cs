@@ -15,7 +15,6 @@ builder.Services
     .AddScoped<IHttpService, HttpService>()
     .AddScoped<ILocalStorageService, LocalStorageService>()
     .AddScoped<IAirHornService, AirHornService>()
-    //.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
     .AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiUrl) });
 
 builder.Services.AddTelerikBlazor();

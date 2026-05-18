@@ -20,8 +20,7 @@ public interface IHttpService
   Task<T> Get<T>(string uri);
   Task<T> Post<T>(string uri, object value);
   Task<T> Put<T>(string uri, object value);
-
-  /** Patch is not used because they entire row is assumed to be updated due to temporal tables **/
+  /// Patch is not used because the entire row is presumed updated due to temporal tables
   //Task<T> Patch<T>(string uri, object value);
 }
 
@@ -33,10 +32,10 @@ public class HttpService : IHttpService
   private IConfiguration _configuration;
 
   public HttpService(
-      HttpClient httpClient,
-      NavigationManager navigationManager,
-      ILocalStorageService localStorageService,
-      IConfiguration configuration
+    HttpClient httpClient,
+    NavigationManager navigationManager,
+    ILocalStorageService localStorageService,
+    IConfiguration configuration
   )
   {
     _httpClient = httpClient;
@@ -48,27 +47,27 @@ public class HttpService : IHttpService
   public async Task<T> Delete<T>(string uri)
   {
     var request = new HttpRequestMessage(HttpMethod.Delete, uri);
-    return await sendRequest<T>(request);
+    return await SendRequest<T>(request);
   }
 
   public async Task<T> Get<T>(string uri)
   {
     var request = new HttpRequestMessage(HttpMethod.Get, uri);
-    return await sendRequest<T>(request);
+    return await SendRequest<T>(request);
   }
 
   public async Task<T> Post<T>(string uri, object value)
   {
     var request = new HttpRequestMessage(HttpMethod.Post, uri);
     request.Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json");
-    return await sendRequest<T>(request);
+    return await SendRequest<T>(request);
   }
 
   public async Task<T> Put<T>(string uri, object value)
   {
     var request = new HttpRequestMessage(HttpMethod.Put, uri);
     request.Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json");
-    return await sendRequest<T>(request);
+    return await SendRequest<T>(request);
   }
 
   //public async Task<T> Patch<T>(string uri, object value)
@@ -78,26 +77,24 @@ public class HttpService : IHttpService
   //  return await sendRequest<T>(request);
   //}
 
-  private async Task<T> sendRequest<T>(HttpRequestMessage request)
+  private async Task<T> SendRequest<T>(HttpRequestMessage request)
   {
-    // add jwt auth header if user is logged in and request is to the api url
+    /// add jwt auth header if user is logged in and request is to the api url
     //var user = await _localStorageService.GetItem<User>("user");
     //var isApiUrl = !request.RequestUri.IsAbsoluteUri;
     //if (user != null && isApiUrl)
     //    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", user.Token);
-    //request.SetBrowserRequestMode(BrowserRequestMode.NoCors);
-    //request.SetBrowserRequestCache(BrowserRequestCache.NoStore);
-    //request.SetBrowserRequestCredentials(BrowserRequestCredentials.Omit);
+
     using var response = await _httpClient.SendAsync(request);
 
-    // auto logout on 401 response
+    /// auto logout on 401 response
     if (response.StatusCode == HttpStatusCode.Unauthorized)
     {
       _navigationManager.NavigateTo("logout");
       return default;
     }
 
-    // throw exception on error response
+    /// throw exception on error response
     if (!response.IsSuccessStatusCode)
     {
       var error = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
