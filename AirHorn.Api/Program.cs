@@ -4,33 +4,49 @@ using Microsoft.Net.Http.Headers;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+/// Add services to the container.
 builder.Services.AddDbContext<DataContext>();
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+/// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddCors(options =>
 {
-  options.AddDefaultPolicy(policy =>
-  {
-    /// CORS notes
-    /// - Use a CORS tester: https://cors-test.codehappy.dev/
-    /// - Be precise: Trailing forward slashes result in CORS block
-    /// - IIS URL rewrite rules (redirects/rewrites) strip these headers & trigger CORS
-    ///   - i.e. AllowAnyHeader() et al do not fix these problems
-    /// - If IIS must intervene (URL rewrites, reverse proxies, etc.)
-    ///   - Download IIS Cors module: https://www.iis.net/downloads/microsoft/iis-cors-module
-    ///   - Configure: https://learn.microsoft.com/en-us/iis/extensions/cors-module/cors-module-configuration-reference#cors-configuration
-    ///   - Keep Headers: https://www.carlosag.net/articles/enable-cors-access-control-allow-origin.cshtml
-    ///   - Custom Headers: https://learn.microsoft.com/en-us/iis/extensions/url-rewrite-module/modifying-http-response-headers
-    policy.WithOrigins("https://airhorn.tyleximus.com", "https://*.airhorn.tyleximus.com", "https://localhost:7266")
-      .SetIsOriginAllowedToAllowWildcardSubdomains()
-      .AllowAnyHeader() /// Allows header content-type
-      .AllowAnyMethod() /// Allows method PUT
-      .AllowCredentials();
-  });
+    options.AddDefaultPolicy(policy =>
+    {
+        /// CORS notes
+        /// - Use a CORS tester: https://cors-test.codehappy.dev/
+        /// - Be precise: Trailing forward slashes result in CORS block
+        /// - IIS URL rewrite rules (redirects/rewrites) strip these headers & trigger CORS
+        ///   - i.e. AllowAnyHeader() et al do not fix these problems
+        /// - If IIS must intervene (URL rewrites, reverse proxies, etc.)
+        ///   - Download IIS Cors module: https://www.iis.net/downloads/microsoft/iis-cors-module
+        ///   - Configure: https://learn.microsoft.com/en-us/iis/extensions/cors-module/cors-module-configuration-reference#cors-configuration
+        ///   - Keep Headers: https://www.carlosag.net/articles/enable-cors-access-control-allow-origin.cshtml
+        ///   - Custom Headers: https://learn.microsoft.com/en-us/iis/extensions/url-rewrite-module/modifying-http-response-headers
+        policy
+            .SetIsOriginAllowed(origin =>
+            {
+                if (string.IsNullOrWhiteSpace(origin)) return false;
+                if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
+
+                /// Allow any port on localhost (http or https)
+                if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                /// Allow exact production domain and any subdomain
+                if (uri.Host.Equals("airhorn.tyleximus.com", StringComparison.OrdinalIgnoreCase))
+                    return true;
+                if (uri.Host.EndsWith(".airhorn.tyleximus.com", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                return false;
+            })
+            .AllowAnyHeader() /// Allows header content-type
+            .AllowAnyMethod() /// Allows method PUT
+            .AllowCredentials();
+    });
 });
 
 var app = builder.Build();
@@ -41,13 +57,13 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedProto
 });
 
-//if (app.Environment.IsDevelopment())
-//{
-  app.UseSwagger();
-  app.UseSwaggerUI();
-//}
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
-//app.UseHttpsRedirection();
+app.UseRouting();
 
 app.UseCors();
 
